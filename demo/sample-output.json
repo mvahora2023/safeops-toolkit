@@ -1,0 +1,63 @@
+{
+  "_note": "SYNTHETIC DATA — not from a real system. Represents output of Get-RecentLogErrors -LogName System -MaxEvents 8 piped to Export-SafeOpsReport -Format JSON.",
+  "generatedBy": "Export-SafeOpsReport",
+  "schema": "Get-RecentLogErrors / Get-LogEventsById output shape: TimeCreated, Id, ProviderName, LevelDisplayName, Message",
+  "records": [
+    {
+      "TimeCreated": "2026-05-21T08:42:11Z",
+      "Id": 7034,
+      "ProviderName": "Service Control Manager",
+      "LevelDisplayName": "Error",
+      "Message": "The Print Spooler service terminated unexpectedly. It has done this 1 time(s). The following corrective action will be taken in 60000 milliseconds: Restart the service."
+    },
+    {
+      "TimeCreated": "2026-05-21T08:38:55Z",
+      "Id": 7031,
+      "ProviderName": "Service Control Manager",
+      "LevelDisplayName": "Error",
+      "Message": "The Print Spooler service terminated unexpectedly. It has done this 1 time(s)."
+    },
+    {
+      "TimeCreated": "2026-05-21T07:55:03Z",
+      "Id": 7023,
+      "ProviderName": "Service Control Manager",
+      "LevelDisplayName": "Error",
+      "Message": "The Windows Update service terminated with the following error: The system cannot find the file specified."
+    },
+    {
+      "TimeCreated": "2026-05-21T07:15:44Z",
+      "Id": 10016,
+      "ProviderName": "Microsoft-Windows-DistributedCOM",
+      "LevelDisplayName": "Error",
+      "Message": "The application-specific permission settings do not grant Local Activation permission for the COM Server application with CLSID {00000000-0000-0000-0000-000000000001} to the user WORKGROUP\\SYSTEM SID (S-1-5-18) from address LocalHost (Using LRPC) running in the application container Unavailable SID (Unavailable)."
+    },
+    {
+      "TimeCreated": "2026-05-21T06:50:28Z",
+      "Id": 7034,
+      "ProviderName": "Service Control Manager",
+      "LevelDisplayName": "Error",
+      "Message": "The Print Spooler service terminated unexpectedly. It has done this 2 time(s). The following corrective action will be taken in 60000 milliseconds: Restart the service."
+    },
+    {
+      "TimeCreated": "2026-05-21T06:12:09Z",
+      "Id": 7000,
+      "ProviderName": "Service Control Manager",
+      "LevelDisplayName": "Error",
+      "Message": "The Windows Defender Antivirus Network Inspection Service service failed to start due to the following error: The service did not respond to the start or control request in a timely fashion."
+    },
+    {
+      "TimeCreated": "2026-05-21T05:44:17Z",
+      "Id": 7009,
+      "ProviderName": "Service Control Manager",
+      "LevelDisplayName": "Error",
+      "Message": "A timeout was reached (30000 milliseconds) while waiting for the Windows Update service to connect."
+    },
+    {
+      "TimeCreated": "2026-05-21T04:30:01Z",
+      "Id": 10016,
+      "ProviderName": "Microsoft-Windows-DistributedCOM",
+      "LevelDisplayName": "Error",
+      "Message": "The application-specific permission settings do not grant Local Launch permission for the COM Server application with CLSID {00000000-0000-0000-0000-000000000002} to the user WORKGROUP\\NetworkService SID (S-1-5-20) from address LocalHost (Using LRPC) running in the application container Unavailable SID (Unavailable)."
+    }
+  ]
+}
