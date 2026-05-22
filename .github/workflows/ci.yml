@@ -46,37 +46,23 @@ jobs:
           Write-Output 'PSScriptAnalyzer: no issues found.'
 
   # ── Tests ─────────────────────────────────────────────────────────────────
-  test:
-    name: "Pester — ${{ matrix.label }}"
+  test-ps51:
+    name: "Pester — PS 5.1"
     needs: lint
     runs-on: windows-latest
-
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - shell: powershell
-            label: PS 5.1
-            artifact: ps-5-1
-            coverage: 'false'
-          - shell: pwsh
-            label: PS 7
-            artifact: ps-7
-            coverage: 'true'
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Pin to exact version for reproducible builds — no surprise upgrades.
       - name: Install Pester
-        shell: ${{ matrix.shell }}
+        shell: powershell
         run: |
           Install-Module -Name Pester -RequiredVersion 5.7.1 -Force -SkipPublisherCheck
           Import-Module Pester -RequiredVersion 5.7.1
 
       - name: Run Pester tests
-        shell: ${{ matrix.shell }}
+        shell: powershell
         run: |
           $config = New-PesterConfiguration
           $config.Run.Path         = '.\Tests'
@@ -86,13 +72,52 @@ jobs:
           $config.TestResult.OutputPath   = 'TestResults\pester.xml'
           $config.TestResult.OutputFormat = 'NUnitXml'
 
-          if ('${{ matrix.coverage }}' -eq 'true') {
-            $config.CodeCoverage.Enabled = $true
-            $config.CodeCoverage.Path    = @(
-              '.\SafeOpsToolkit\Public\*.ps1',
-              '.\SafeOpsToolkit\Private\*.ps1'
-            )
+          New-Item -ItemType Directory -Force -Path TestResults | Out-Null
+          $result = Invoke-Pester -Configuration $config
+
+          if ($result.FailedCount -gt 0) {
+            Write-Error "$($result.FailedCount) test(s) failed."
+            exit 1
           }
+
+      - name: Upload test artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pester-results-ps-5-1
+          path: TestResults\pester.xml
+          retention-days: 30
+
+  test-ps7:
+    name: "Pester — PS 7"
+    needs: lint
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Pester
+        shell: pwsh
+        run: |
+          Install-Module -Name Pester -RequiredVersion 5.7.1 -Force -SkipPublisherCheck
+          Import-Module Pester -RequiredVersion 5.7.1
+
+      - name: Run Pester tests
+        shell: pwsh
+        run: |
+          $config = New-PesterConfiguration
+          $config.Run.Path         = '.\Tests'
+          $config.Run.PassThru     = $true
+          $config.Output.Verbosity = 'Detailed'
+          $config.TestResult.Enabled      = $true
+          $config.TestResult.OutputPath   = 'TestResults\pester.xml'
+          $config.TestResult.OutputFormat = 'NUnitXml'
+          $config.CodeCoverage.Enabled    = $true
+          $config.CodeCoverage.Path       = @(
+            '.\SafeOpsToolkit\Public\*.ps1',
+            '.\SafeOpsToolkit\Private\*.ps1'
+          )
 
           New-Item -ItemType Directory -Force -Path TestResults | Out-Null
           $result = Invoke-Pester -Configuration $config
@@ -103,7 +128,7 @@ jobs:
             $exitCode = 1
           }
 
-          if ('${{ matrix.coverage }}' -eq 'true' -and $null -ne $result.CodeCoverage) {
+          if ($null -ne $result.CodeCoverage) {
             $pct = [Math]::Round($result.CodeCoverage.CoveragePercent, 1)
             Write-Output "Code coverage: $pct%"
             if ($pct -lt 80) {
@@ -124,6 +149,6 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: pester-results-${{ matrix.artifact }}
+          name: pester-results-ps-7
           path: TestResults\pester.xml
           retention-days: 30
