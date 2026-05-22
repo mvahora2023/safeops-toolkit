@@ -187,6 +187,29 @@ Describe 'Get-AllowlistedServiceStatus' {
         $result = 'Spooler' | Get-AllowlistedServiceStatus
         $result | Should -Not -BeNullOrEmpty
     }
+
+    Context 'error path' {
+        BeforeAll {
+            Mock -CommandName 'Write-SafeOpsLog' -ModuleName 'SafeOpsToolkit' -MockWith {}
+            Mock -CommandName 'Get-Service' -ModuleName 'SafeOpsToolkit' -MockWith { throw 'service query failure' }
+        }
+
+        It 'does not throw when Get-Service fails (uses Write-Error not throw)' {
+            { Get-AllowlistedServiceStatus -Name Spooler -ErrorAction SilentlyContinue } |
+                Should -Not -Throw
+        }
+
+        It 'logs Level=ERROR when Get-Service fails' {
+            Get-AllowlistedServiceStatus -Name Spooler -ErrorAction SilentlyContinue
+            Should -Invoke -CommandName 'Write-SafeOpsLog' -ModuleName 'SafeOpsToolkit' `
+                -Times 1 -Exactly -ParameterFilter { $Level -eq 'ERROR' }
+        }
+
+        It 'returns no output when Get-Service fails' {
+            Get-AllowlistedServiceStatus -Name Spooler -ErrorAction SilentlyContinue |
+                Should -BeNullOrEmpty
+        }
+    }
 }
 
 # ── Restart-AllowlistedService ────────────────────────────────────────────────────────────────────
@@ -235,6 +258,22 @@ Describe 'Restart-AllowlistedService' {
             $result.PSObject.Properties.Name.Count | Should -Be 2
             $result.PSObject.Properties.Name | Should -Contain 'Name'
             $result.PSObject.Properties.Name | Should -Contain 'Status'
+        }
+    }
+
+    Context 'error path' {
+        BeforeAll {
+            Mock -CommandName 'Restart-Service' -ModuleName 'SafeOpsToolkit' -MockWith { throw 'restart failed' }
+        }
+
+        It 'rethrows when Restart-Service fails' {
+            { Restart-AllowlistedService -Name Spooler -Confirm:$false } | Should -Throw
+        }
+
+        It 'logs Level=ERROR when Restart-Service fails' {
+            try { Restart-AllowlistedService -Name Spooler -Confirm:$false } catch {}
+            Should -Invoke -CommandName 'Write-SafeOpsLog' -ModuleName 'SafeOpsToolkit' `
+                -Times 1 -Exactly -ParameterFilter { $Level -eq 'ERROR' }
         }
     }
 }
@@ -287,6 +326,23 @@ Describe 'Set-AllowlistedServiceStartupType' {
             $result.PSObject.Properties.Name.Count | Should -Be 2
             $result.PSObject.Properties.Name | Should -Contain 'Name'
             $result.PSObject.Properties.Name | Should -Contain 'StartType'
+        }
+    }
+
+    Context 'error path' {
+        BeforeAll {
+            Mock -CommandName 'Set-Service' -ModuleName 'SafeOpsToolkit' -MockWith { throw 'set service failed' }
+        }
+
+        It 'rethrows when Set-Service fails' {
+            { Set-AllowlistedServiceStartupType -Name Spooler -StartupType Manual -Confirm:$false } |
+                Should -Throw
+        }
+
+        It 'logs Level=ERROR when Set-Service fails' {
+            try { Set-AllowlistedServiceStartupType -Name Spooler -StartupType Manual -Confirm:$false } catch {}
+            Should -Invoke -CommandName 'Write-SafeOpsLog' -ModuleName 'SafeOpsToolkit' `
+                -Times 1 -Exactly -ParameterFilter { $Level -eq 'ERROR' }
         }
     }
 }
