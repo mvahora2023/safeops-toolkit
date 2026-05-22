@@ -1,6 +1,6 @@
 # SafeOpsToolkit
 
-![CI](https://github.com/your-org/safeops-toolkit/actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/mvahora2023/safeops-toolkit/actions/workflows/ci.yml/badge.svg)
 ![PowerShell 5.1+](https://img.shields.io/badge/PowerShell-5.1%2B-blue)
 ![License MIT](https://img.shields.io/badge/license-MIT-green)
 

@@ -36,8 +36,8 @@
         PSData = @{
             Tags         = @('Windows', 'Service', 'EventLog', 'Operations', 'Allowlist',
                              'Security', 'Audit', 'Triage', 'SafeOps')
-            ProjectUri   = 'https://github.com/your-org/safeops-toolkit'
-            LicenseUri   = 'https://github.com/your-org/safeops-toolkit/blob/main/LICENSE'
+            ProjectUri   = 'https://github.com/mvahora2023/safeops-toolkit'
+            LicenseUri   = 'https://github.com/mvahora2023/safeops-toolkit/blob/main/LICENSE'
             ReleaseNotes = 'v1.0.0 — Initial release. See CHANGELOG.md for full history.'
         }
     }

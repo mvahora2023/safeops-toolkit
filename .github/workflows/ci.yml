@@ -7,16 +7,15 @@ on:
     branches: [main]
 
 jobs:
-  test:
-    name: Pester Tests — Windows
+  # ── Lint ──────────────────────────────────────────────────────────────────
+  lint:
+    name: PSScriptAnalyzer
     runs-on: windows-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Validate the manifest first so a broken .psd1 produces a clear, early failure
-      # rather than a confusing test-runner error.
       - name: Validate module manifest
         shell: pwsh
         run: |
@@ -25,38 +24,106 @@ jobs:
             -ErrorAction Stop
           Write-Output "Manifest OK: $($manifest.Name) v$($manifest.Version)"
 
-      - name: Install Pester
+      - name: Install PSScriptAnalyzer
         shell: pwsh
         run: |
-          # Force-install so the runner's pre-installed Pester 3/4 is not used.
-          Install-Module -Name Pester -MinimumVersion 5.0 -Force -SkipPublisherCheck
-          Import-Module Pester -MinimumVersion 5.0
+          Install-Module -Name PSScriptAnalyzer -RequiredVersion 1.22.0 `
+            -Force -SkipPublisherCheck
+
+      - name: Run PSScriptAnalyzer
+        shell: pwsh
+        run: |
+          Import-Module PSScriptAnalyzer -RequiredVersion 1.22.0
+          $results = Invoke-ScriptAnalyzer `
+            -Path .\SafeOpsToolkit `
+            -Settings .\PSScriptAnalyzerSettings.psd1 `
+            -Recurse
+          if ($results) {
+            $results | Format-Table RuleName, Severity, ScriptName, Line, Message -AutoSize
+            Write-Error "PSScriptAnalyzer found $($results.Count) issue(s)."
+            exit 1
+          }
+          Write-Output 'PSScriptAnalyzer: no issues found.'
+
+  # ── Tests ─────────────────────────────────────────────────────────────────
+  test:
+    name: "Pester — ${{ matrix.label }}"
+    needs: lint
+    runs-on: windows-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shell: powershell
+            label: PS 5.1
+            artifact: ps-5-1
+            coverage: 'false'
+          - shell: pwsh
+            label: PS 7
+            artifact: ps-7
+            coverage: 'true'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Pin to exact version for reproducible builds — no surprise upgrades.
+      - name: Install Pester
+        shell: ${{ matrix.shell }}
+        run: |
+          Install-Module -Name Pester -RequiredVersion 5.7.1 -Force -SkipPublisherCheck
+          Import-Module Pester -RequiredVersion 5.7.1
 
       - name: Run Pester tests
-        shell: pwsh
+        shell: ${{ matrix.shell }}
         run: |
           $config = New-PesterConfiguration
-          $config.Run.Path        = '.\Tests'
-          $config.Run.Exit        = $true   # non-zero exit code when any test fails
+          $config.Run.Path         = '.\Tests'
+          $config.Run.PassThru     = $true
           $config.Output.Verbosity = 'Detailed'
           $config.TestResult.Enabled      = $true
           $config.TestResult.OutputPath   = 'TestResults\pester.xml'
           $config.TestResult.OutputFormat = 'NUnitXml'
-          New-Item -ItemType Directory -Force -Path TestResults | Out-Null
-          Invoke-Pester -Configuration $config
 
-      # Upload the NUnit XML so GitHub Actions can display a test-results summary.
+          if ('${{ matrix.coverage }}' -eq 'true') {
+            $config.CodeCoverage.Enabled = $true
+            $config.CodeCoverage.Path    = @(
+              '.\SafeOpsToolkit\Public\*.ps1',
+              '.\SafeOpsToolkit\Private\*.ps1'
+            )
+          }
+
+          New-Item -ItemType Directory -Force -Path TestResults | Out-Null
+          $result = Invoke-Pester -Configuration $config
+
+          $exitCode = 0
+          if ($result.FailedCount -gt 0) {
+            Write-Error "$($result.FailedCount) test(s) failed."
+            $exitCode = 1
+          }
+
+          if ('${{ matrix.coverage }}' -eq 'true' -and $null -ne $result.CodeCoverage) {
+            $pct = [Math]::Round($result.CodeCoverage.CoveragePercent, 1)
+            Write-Output "Code coverage: $pct%"
+            if ($pct -lt 80) {
+              Write-Error "Coverage $pct% is below the 80% threshold."
+              $exitCode = 1
+            }
+          }
+
+          exit $exitCode
+
       - name: Publish test results
         uses: EnricoMi/publish-unit-test-result-action/windows@v2
         if: always()
         with:
           files: TestResults\pester.xml
 
-      # Archive the raw XML as a downloadable artifact for offline inspection.
       - name: Upload test artifact
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: pester-results
+          name: pester-results-${{ matrix.artifact }}
           path: TestResults\pester.xml
           retention-days: 30

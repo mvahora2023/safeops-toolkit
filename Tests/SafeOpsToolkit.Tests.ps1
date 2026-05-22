@@ -106,6 +106,22 @@ Describe 'Parameter validation' {
         It 'rejects MaxEvents = 501' {
             { Get-LogEventsById -LogName System -EventId 7036 -MaxEvents 501 } | Should -Throw
         }
+
+        It 'EventId ValidateRange is 1 to 65535' {
+            $cmd  = Get-Command Get-LogEventsById
+            $attr = $cmd.Parameters['EventId'].Attributes |
+                Where-Object { $_ -is [System.Management.Automation.ValidateRangeAttribute] }
+            $attr.MinRange | Should -Be 1
+            $attr.MaxRange | Should -Be 65535
+        }
+
+        It 'MaxEvents ValidateRange is 1 to 500' {
+            $cmd  = Get-Command Get-LogEventsById
+            $attr = $cmd.Parameters['MaxEvents'].Attributes |
+                Where-Object { $_ -is [System.Management.Automation.ValidateRangeAttribute] }
+            $attr.MinRange | Should -Be 1
+            $attr.MaxRange | Should -Be 500
+        }
     }
 
     Context 'Export-SafeOpsReport' {
@@ -533,6 +549,100 @@ Describe 'Export-SafeOpsReport' {
                 Export-SafeOpsReport -Format CSV -Path $path
             $result.Count | Should -Be 1
         }
+    }
+}
+
+# ── Allowlist consistency ─────────────────────────────────────────────────────────────────────────
+# Verify that [ValidateSet] parameter attributes and the runtime $allowlist in
+# Assert-SafeOpsAllowed stay in sync.  A mismatch means parameter-binding allows a name
+# that the runtime gate then rejects (or vice-versa).
+
+Describe 'Allowlist consistency' {
+
+    It 'ValidateSet values on Name parameter match the Assert-SafeOpsAllowed runtime list' {
+        $paramAttr = (Get-Command Get-AllowlistedServiceStatus).Parameters['Name'].Attributes |
+            Where-Object { $_ -is [System.Management.Automation.ValidateSetAttribute] }
+        $fromValidateSet = [string[]] $paramAttr.ValidValues | Sort-Object
+
+        # Parse the private source as text — reliable across all PS versions without
+        # depending on FindAll ScriptBlock delegate binding behaviour.
+        $privateSrc  = Get-Content (
+            Join-Path $PSScriptRoot '..\SafeOpsToolkit\Private\Assert-SafeOpsAllowed.ps1'
+        ) -Raw
+        $arrayStr    = [regex]::Match($privateSrc, '\$allowlist\s*=\s*@\(([^)]+)\)').Groups[1].Value
+        $fromPrivateFn = [regex]::Matches($arrayStr, "'([^']+)'") |
+            ForEach-Object { $_.Groups[1].Value } | Sort-Object
+
+        $fromValidateSet | Should -Be $fromPrivateFn
+    }
+
+    It 'all three service-name parameters share identical ValidateSet values' {
+        $signatures = @(
+            'Get-AllowlistedServiceStatus',
+            'Restart-AllowlistedService',
+            'Set-AllowlistedServiceStartupType'
+        ) | ForEach-Object {
+            $attr = (Get-Command $_).Parameters['Name'].Attributes |
+                Where-Object { $_ -is [System.Management.Automation.ValidateSetAttribute] }
+            ($attr.ValidValues | Sort-Object) -join ','
+        }
+        ($signatures | Select-Object -Unique).Count | Should -Be 1
+    }
+}
+
+# ── ShouldProcess attributes ──────────────────────────────────────────────────────────────────────
+
+Describe 'ShouldProcess attributes' {
+
+    It 'Restart-AllowlistedService has -WhatIf support' {
+        (Get-Command Restart-AllowlistedService).Parameters.ContainsKey('WhatIf') |
+            Should -Be $true
+    }
+
+    It 'Set-AllowlistedServiceStartupType has -WhatIf support' {
+        (Get-Command Set-AllowlistedServiceStartupType).Parameters.ContainsKey('WhatIf') |
+            Should -Be $true
+    }
+
+    It 'Get-AllowlistedServiceStatus does not expose -WhatIf (read-only command)' {
+        (Get-Command Get-AllowlistedServiceStatus).Parameters.ContainsKey('WhatIf') |
+            Should -Be $false
+    }
+
+    It 'Restart-AllowlistedService ConfirmImpact is High' {
+        $src   = Get-Content (
+            Join-Path $PSScriptRoot '..\SafeOpsToolkit\Public\Restart-AllowlistedService.ps1'
+        ) -Raw
+        $match = [regex]::Match($src, "ConfirmImpact\s*=\s*'([^']+)'")
+        $match.Groups[1].Value | Should -Be 'High'
+    }
+
+    It 'Set-AllowlistedServiceStartupType ConfirmImpact is Medium' {
+        $src   = Get-Content (
+            Join-Path $PSScriptRoot '..\SafeOpsToolkit\Public\Set-AllowlistedServiceStartupType.ps1'
+        ) -Raw
+        $match = [regex]::Match($src, "ConfirmImpact\s*=\s*'([^']+)'")
+        $match.Groups[1].Value | Should -Be 'Medium'
+    }
+}
+
+# ── Write-SafeOpsLog (disk write) ─────────────────────────────────────────────────────────────────
+
+Describe 'Write-SafeOpsLog (disk write)' {
+
+    It 'appends a UTC-timestamped entry to the log file' {
+        $tempDir = $TestDrive.ToString()
+
+        InModuleScope 'SafeOpsToolkit' -Parameters @{ TempDir = $tempDir } {
+            $saved                = $Script:SafeOpsLogDir
+            $Script:SafeOpsLogDir = $TempDir
+            Write-SafeOpsLog -Level INFO -Message 'disk-write-test'
+            $Script:SafeOpsLogDir = $saved
+        }
+
+        $logFile = Join-Path $tempDir 'safeops.log'
+        $logFile | Should -Exist
+        (Get-Content $logFile -Raw) | Should -Match '\[INFO\] disk-write-test'
     }
 }
 
