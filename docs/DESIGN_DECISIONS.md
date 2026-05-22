@@ -132,3 +132,29 @@ The following capabilities were explicitly considered and rejected:
 non-deterministic across PowerShell versions and object instances. Ordered hashtables produce
 objects with properties in declaration order, which means `Format-Table` columns appear in a
 predictable, human-readable sequence without requiring an explicit `Select-Object` call.
+
+---
+
+## DD-009 — Structured log format: key=value over JSON
+
+**Decision:** `Write-SafeOpsLog` emits log lines in `TIMESTAMP [LEVEL] Message Key=Value …`
+format (space-separated key=value pairs) rather than JSON or CSV.
+
+**Rationale:**
+
+- **Human readability:** An ops engineer tailing the log with `Get-Content -Wait` can read
+  entries at a glance without a JSON parser or `ConvertFrom-Json` pipeline.
+- **Simplicity of implementation:** `Add-Content` appends a single string; there is no
+  serialiser, no schema, and no risk of a malformed JSON object terminating mid-write if the
+  process is killed.
+- **`grep`/`Select-String` compatibility:** Key=Value lines are trivially searchable with
+  `Select-String 'Service=Spooler'` or `grep 'ERROR'` without requiring `jq` or a JSON-aware
+  tool.
+- **No external dependency:** The format is PowerShell-native with no `ConvertTo-Json`
+  invocation, keeping the private helper free of version-specific cmdlet behaviour differences
+  between Windows PowerShell 5.1 and PowerShell 7.
+
+**Trade-off considered:** JSON would make machine consumption (SIEM ingestion, log aggregators)
+easier and would handle values containing spaces without ambiguity. If a future version adds
+centralised log shipping, switching to JSON would be the right call — the change would be
+isolated to `Write-SafeOpsLog` and its tests, with no public API impact.

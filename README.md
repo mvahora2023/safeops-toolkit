@@ -57,6 +57,31 @@ administrators who need to hand out scoped service-management access without exp
 
 ---
 
+## Execution Policy
+
+SafeOpsToolkit ships as unsigned `.ps1` files. Windows PowerShell's default execution
+policy (`Restricted`) blocks all scripts. Set the policy before importing the module.
+
+| Environment | Recommended setting | Command |
+|---|---|---|
+| Developer workstation | `RemoteSigned` | `Set-ExecutionPolicy RemoteSigned -Scope CurrentUser` |
+| CI/CD runner | `Bypass` (process scope only) | `Set-ExecutionPolicy Bypass -Scope Process` |
+| Production server | `AllSigned` | Deploy signed copies; see note below |
+
+**AllSigned environments:** sign all `.ps1` files in `SafeOpsToolkit/` with an Authenticode
+certificate before deployment:
+
+```powershell
+$cert = Get-ChildItem Cert:\CurrentUser\My -CodeSigningCert | Select-Object -First 1
+Get-ChildItem -Path .\SafeOpsToolkit -Recurse -Filter '*.ps1' |
+    ForEach-Object { Set-AuthenticodeSignature -FilePath $_.FullName -Certificate $cert }
+```
+
+The GitHub Actions workflow sets `-Scope Process` on the runner, so CI never modifies the
+machine-level policy.
+
+---
+
 ## Quick Start
 
 ```powershell

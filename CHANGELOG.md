@@ -12,6 +12,44 @@ _No unreleased changes._
 
 ---
 
+## [1.0.1] — 2026-05-22
+
+### Added
+
+- `Invoke-SafeOpsLogRotation` private helper — rotates `safeops.log` when it reaches
+  10 MB; retains up to 5 generations (`safeops.log.1` through `safeops.log.5`).
+- `CONTRIBUTING.md` — contributor guide covering PR process, test requirements, allowlist
+  update procedure, and security principles.
+
+### Changed
+
+- `Write-SafeOpsLog` — context values whose keys match the sensitive-key pattern
+  (`password`, `token`, `secret`, `key`, `credential`, `apikey`, `accesstoken`) are now
+  automatically replaced with `<redacted>` before writing. Converts the previous
+  documentation-only control into a technical enforcement control.
+- `Write-SafeOpsLog` — calls `Invoke-SafeOpsLogRotation` before each write; log rotation
+  is now automatic and requires no operator action.
+- `README.md` — added Execution Policy section explaining per-environment settings and
+  `AllSigned` signing workflow.
+- `docs/DESIGN_DECISIONS.md` — added DD-009 (log format: key=value rationale).
+
+### Security
+
+- Log redaction prevents accidentally logged secrets (e.g. a caller passing a token
+  in a Context key) from persisting to disk in plain text.
+- Log rotation bounds the maximum disk usage of the audit trail.
+
+### Tests
+
+- Added error-path tests for all three service commands: verifies ERROR log entry and
+  correct throw/non-throw behavior when the underlying SCM call fails.
+- Added 7 new tests for `Invoke-SafeOpsLogRotation` (no-op cases, rotation trigger,
+  generation shifting, oldest-dropped behavior).
+- Added 3 new tests for `Write-SafeOpsLog` redaction (sensitive keys, safe keys, multiple
+  sensitive keys in one entry).
+
+---
+
 ## [1.0.0] — 2026-05-21
 
 ### Added
