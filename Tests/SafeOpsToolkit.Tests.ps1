@@ -702,6 +702,107 @@ Describe 'Write-SafeOpsLog (disk write)' {
     }
 }
 
+# ── Invoke-SafeOpsLogRotation ─────────────────────────────────────────────────────────────────────
+
+Describe 'Invoke-SafeOpsLogRotation' {
+
+    It 'does nothing when the log file does not exist' {
+        InModuleScope 'SafeOpsToolkit' -Parameters @{ TempDir = $TestDrive.ToString() } {
+            { Invoke-SafeOpsLogRotation -LogPath (Join-Path $TempDir 'nonexistent.log') } |
+                Should -Not -Throw
+        }
+    }
+
+    It 'does not rotate when the log file is below the threshold' {
+        $tempDir = $TestDrive.ToString()
+        InModuleScope 'SafeOpsToolkit' -Parameters @{ TempDir = $tempDir } {
+            $log = Join-Path $TempDir 'small.log'
+            Set-Content -LiteralPath $log -Value 'tiny' -Encoding UTF8
+            Invoke-SafeOpsLogRotation -LogPath $log -MaxBytes 1MB
+        }
+        Join-Path $tempDir 'small.log'   | Should -Exist
+        Join-Path $tempDir 'small.log.1' | Should -Not -Exist
+    }
+
+    It 'renames current log to .1 when the threshold is exceeded' {
+        $tempDir = $TestDrive.ToString()
+        InModuleScope 'SafeOpsToolkit' -Parameters @{ TempDir = $tempDir } {
+            $log = Join-Path $TempDir 'rotate.log'
+            Set-Content -LiteralPath $log -Value 'data' -Encoding UTF8
+            Invoke-SafeOpsLogRotation -LogPath $log -MaxBytes 1
+        }
+        Join-Path $tempDir 'rotate.log'   | Should -Not -Exist
+        Join-Path $tempDir 'rotate.log.1' | Should -Exist
+    }
+
+    It 'shifts existing generations and drops the oldest beyond MaxGenerations' {
+        $tempDir = $TestDrive.ToString()
+        InModuleScope 'SafeOpsToolkit' -Parameters @{ TempDir = $tempDir } {
+            $log = Join-Path $TempDir 'gen.log'
+            Set-Content -LiteralPath $log      -Value 'current' -Encoding UTF8
+            Set-Content -LiteralPath "$log.1"  -Value 'gen1'    -Encoding UTF8
+            Set-Content -LiteralPath "$log.2"  -Value 'gen2'    -Encoding UTF8
+            # MaxGenerations=2: .2 is deleted, .1→.2, current→.1
+            Invoke-SafeOpsLogRotation -LogPath $log -MaxBytes 1 -Generations 2
+        }
+        Join-Path $tempDir 'gen.log'   | Should -Not -Exist
+        Join-Path $tempDir 'gen.log.1' | Should -Exist
+        Join-Path $tempDir 'gen.log.2' | Should -Exist
+        Join-Path $tempDir 'gen.log.3' | Should -Not -Exist
+        Get-Content (Join-Path $tempDir 'gen.log.2') -Raw | Should -Match 'gen1'
+    }
+}
+
+# ── Write-SafeOpsLog — redaction ──────────────────────────────────────────────────────────────────
+
+Describe 'Write-SafeOpsLog — redaction' {
+
+    It 'replaces sensitive context key values with <redacted>' {
+        $subDir = Join-Path $TestDrive 'redact-sensitive'
+        $null   = New-Item -ItemType Directory -Path $subDir -Force
+        InModuleScope 'SafeOpsToolkit' -Parameters @{ TempDir = $subDir } {
+            $saved = $Script:SafeOpsLogDir
+            $Script:SafeOpsLogDir = $TempDir
+            Write-SafeOpsLog -Level INFO -Message 'test' -Context @{ password = 'my-secret'; Service = 'Spooler' }
+            $Script:SafeOpsLogDir = $saved
+        }
+        $content = Get-Content (Join-Path $subDir 'safeops.log') -Raw
+        $content | Should -Match 'password=<redacted>'
+        $content | Should -Match 'Service=Spooler'
+        $content | Should -Not -Match 'my-secret'
+    }
+
+    It 'preserves non-sensitive context key values unchanged' {
+        $subDir = Join-Path $TestDrive 'redact-safe'
+        $null   = New-Item -ItemType Directory -Path $subDir -Force
+        InModuleScope 'SafeOpsToolkit' -Parameters @{ TempDir = $subDir } {
+            $saved = $Script:SafeOpsLogDir
+            $Script:SafeOpsLogDir = $TempDir
+            Write-SafeOpsLog -Level INFO -Message 'test' -Context @{ Service = 'wuauserv'; Status = 'Running' }
+            $Script:SafeOpsLogDir = $saved
+        }
+        $content = Get-Content (Join-Path $subDir 'safeops.log') -Raw
+        $content | Should -Match 'Service=wuauserv'
+        $content | Should -Match 'Status=Running'
+    }
+
+    It 'redacts token and apikey keys' {
+        $subDir = Join-Path $TestDrive 'redact-token'
+        $null   = New-Item -ItemType Directory -Path $subDir -Force
+        InModuleScope 'SafeOpsToolkit' -Parameters @{ TempDir = $subDir } {
+            $saved = $Script:SafeOpsLogDir
+            $Script:SafeOpsLogDir = $TempDir
+            Write-SafeOpsLog -Level INFO -Message 'test' -Context @{ apikey = 'abc123'; token = 'xyz789' }
+            $Script:SafeOpsLogDir = $saved
+        }
+        $content = Get-Content (Join-Path $subDir 'safeops.log') -Raw
+        $content | Should -Match     'apikey=<redacted>'
+        $content | Should -Match     'token=<redacted>'
+        $content | Should -Not -Match 'abc123'
+        $content | Should -Not -Match 'xyz789'
+    }
+}
+
 AfterAll {
     Remove-Module SafeOpsToolkit -ErrorAction SilentlyContinue
 }
