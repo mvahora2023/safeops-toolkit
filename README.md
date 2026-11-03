@@ -4,7 +4,7 @@
 ![PowerShell 5.1+](https://img.shields.io/badge/PowerShell-5.1%2B-blue)
 ![License MIT](https://img.shields.io/badge/license-MIT-green)
 
-> A production-quality PowerShell module for allowlisted Windows service management, structured
+> A PowerShell module designed for controlled Windows operations for allowlisted Windows service management, structured
 > event-log inspection, and safe operational reporting — built for ops teams that need
 > guardrails around day-to-day service triage.
 
@@ -86,7 +86,7 @@ machine-level policy.
 
 ```powershell
 # 1. Clone or copy the repository
-git clone https://github.com/your-org/safeops-toolkit.git
+git clone https://github.com/mvahora2023/safeops-toolkit.git
 cd safeops-toolkit
 
 # 2. Import the module
