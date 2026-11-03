@@ -69,7 +69,7 @@ li{margin:9px 0;font-size:.84rem;color:var(--muted)}
 </style></head><body>
 <header class="topbar"><div class="shell topbar-inner"><div class="brand">MAHMADARSH VAHORA <b>/ PROJECT LAB</b></div><nav class="toplinks" aria-label="External links"><a id="repoLinkTop" rel="noopener noreferrer">GitHub source ↗</a><a href="https://github.com/mvahora2023" rel="noopener noreferrer">Portfolio ↗</a></nav></div></header>
 <main class="shell">
-<section class="hero"><div><span class="eyebrow" id="eyebrow"></span><h1 id="projectTitle"></h1><p class="lead" id="subtitle"></p><div class="actions"><button class="btn primary" id="exportBtn">Export filtered data (CSV)</button><button class="btn" id="themeBtn">Toggle theme</button></div></div><aside class="note"><strong id="scopeTitle">Scope &amp; limitations</strong><p id="scopeBody"></p></aside></section>
+<section class="hero"><div><span class="eyebrow" id="eyebrow"></span><h1 id="projectTitle"></h1><p class="lead" id="subtitle"></p><div class="actions"><button class="btn primary" id="exportBtn">Export filtered data (CSV)</button><button class="btn" id="themeBtn">Toggle theme</button><label class="btn" for="importJson">Load local SafeOps JSON</label><input id="importJson" type="file" accept=".json,application/json" aria-label="Load a JSON report exported from SafeOps Toolkit" style="max-width:235px;color:var(--muted);font-size:.8rem"><span id="importStatus" role="status" aria-live="polite" class="small"></span></div></div><aside class="note"><strong id="scopeTitle">Scope &amp; limitations</strong><p id="scopeBody"></p></aside></section>
 <section class="metrics" id="metrics" aria-label="Project metrics"></section>
 <div class="layout">
 <section class="panel"><div class="section-hd"><div><h2 id="explorerTitle">Evidence explorer</h2><p class="description" id="explorerHint">Inspect the source-grounded project entries.</p></div><span id="visibleCount" class="small" role="status" aria-live="polite"></span></div><div id="progress" class="stats-progress" hidden></div>
@@ -108,9 +108,9 @@ for(const x of PROJECT.metrics){
  card.append(value,label,hint);metrics.append(card);
 }
 for(const s of PROJECT.insights){const li=document.createElement('li');li.textContent=s;$('#insights').append(li);}
-const rows=PROJECT.rows;
-const categories=[...new Set(rows.map(r=>r.group))].sort();
-const states=[...new Set(rows.map(r=>r.state))].sort();
+let rows=PROJECT.rows;
+let categories=[...new Set(rows.map(r=>r.group))].sort();
+let states=[...new Set(rows.map(r=>r.state))].sort();
 for(const g of categories){const o=document.createElement('option');o.value=g;o.textContent=g;$('#group').append(o);}
 for(const s of states){const o=document.createElement('option');o.value=s;o.textContent=s;$('#state').append(o);}
 const checkable=PROJECT.mode==='checklist';
@@ -166,6 +166,45 @@ $('#exportBtn').addEventListener('click',()=>{
  const csv='\uFEFF'+values.map(row=>row.map(esc).join(',')).join('\r\n');
  const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
  const a=document.createElement('a');a.href=url;a.download=PROJECT.slug+'-filtered-demo.csv';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+});
+
+function parseSafeOpsRecords(value){
+ const records=Array.isArray(value)?value:Array.isArray(value?.records)?value.records:null;
+ if(!records||records.length<1||records.length>3000)throw new Error('Expected 1 to 3,000 JSON log records');
+ return records.map((r,i)=>{
+  if(!r||typeof r!=='object'||!Number.isInteger(Number(r.Id))||
+     typeof r.ProviderName!=='string'||typeof r.LevelDisplayName!=='string'||
+     typeof r.Message!=='string')throw new Error('Invalid record '+(i+1)+'; expected Id, ProviderName, LevelDisplayName, Message');
+  return {
+    id:'IMPORT-'+(i+1),title:'Event '+r.Id+' · '+r.ProviderName,
+    group:r.ProviderName,state:r.LevelDisplayName,
+    detail:String(r.TimeCreated||'')+'\n'+r.Message,
+    source:'' // imported local records must not falsely claim GitHub provenance
+  };
+ });
+}
+document.getElementById('importJson').addEventListener('change',async e=>{
+ const file=e.target.files?.[0];if(!file)return;
+ const status=document.getElementById('importStatus');
+ try{
+  if(file.size>3000000)throw new Error('File is over 3 MB');
+  const data=JSON.parse(await file.text());
+  const imported=parseSafeOpsRecords(data);
+  rows=imported;
+  categories=[...new Set(rows.map(r=>r.group))].sort();
+  states=[...new Set(rows.map(r=>r.state))].sort();
+  const reset=(id,vals)=>{const select=$(id);while(select.options.length>1)select.remove(1);
+   for(const v of vals){const op=document.createElement('option');op.value=v;op.textContent=v;select.append(op);}
+   select.selectedIndex=0;};
+  reset('#group',categories);reset('#state',states);$('#q').value='';
+  const values=metrics.querySelectorAll('.value');
+  [rows.length,new Set(data.records?.map(r=>r.Id)||data.map?.(r=>r.Id)||[]).size,
+   categories.length,rows.filter(x=>x.state.toLowerCase()==='error').length]
+   .forEach((x,i)=>{if(values[i])values[i].textContent=String(x);});
+  status.textContent=rows.length+' local records loaded. Not uploaded or stored.';
+  paintBars();paint();
+ }catch(error){status.textContent='Could not load: '+error.message;}
+ e.target.value='';
 });
 paintBars();paint();updateProgress();
 </script></body></html>
