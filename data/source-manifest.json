@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "project": "safeops-toolkit",
+  "synthetic": {
+    "source": "demo/sample-output.json",
+    "mode": "default"
+  },
+  "public": [
+    {
+      "id": "kev",
+      "label": "CISA KEV Microsoft entries",
+      "type": "kev",
+      "terms": [
+        "microsoft"
+      ]
+    },
+    {
+      "id": "powershell",
+      "label": "Official PowerShell releases",
+      "type": "releases",
+      "repo": "PowerShell"
+    }
+  ],
+  "localData": {
+    "enabled": false,
+    "fileImport": false,
+    "privateAccounts": false,
+    "deviceAccess": false
+  },
+  "dataPolicy": "Source date displayed. Public data fetched on user action only and never mixed into demo metrics. No private files or device information collected."
+}
